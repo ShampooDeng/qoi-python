@@ -26,7 +26,7 @@ $tree --du -h
 
 Test image from [@video](https://www.bilibili.com/video/BV11z4y1X7V5/)
 
-[![Twitter Follow](https://img.shields.io/twitter/follow/@arcticcave)](https://twitter.com/arcticcave)
+[![Twitter Follow](https://img.shields.io/twitter/follow/arcticcave)](https://twitter.com/arcticcave)
 
 ## Prerequisite library
 
@@ -35,8 +35,8 @@ conda install numpy matplotlib
 ```
 
 todo:
-* [*] find a way to implement sign bit in python
-* [*] check `pack_qoi_op_diff` and `pack_qoi_op_luma` function
+* [x] find a way to implement sign bit in python
+* [x] check `pack_qoi_op_diff` and `pack_qoi_op_luma` function
 * [ ] check qoi end marker when reaching the last pixel
 * [ ] support rgba images
 * [ ] add error checking when pixel value overflows
