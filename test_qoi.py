@@ -7,10 +7,16 @@ import time
 if __name__ == "__main__":
     img_path = './data/background.jpg'
     output_dir = './output/'
+    img = plt.imread(img_path)
+
+    # Write img in png
+    plt.imsave('./output/test.png', img)
+
+    # Write img in npz
+    np.save('./output/test.npy', img)
 
     # Encode test
     start = time.time()
-    img = plt.imread(img_path)
     assert qoi.qoi_encode(img, output_dir + 'test.qoi'), "encode fail."
     end = time.time()
     print(f"Encoding takes {end - start}s")

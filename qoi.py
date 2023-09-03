@@ -237,6 +237,7 @@ def qoi_encode(mat: np.ndarray, path, debug=False):
         # Write qoi image header
         header = pack_qoi_header(width, height)
         f.write(header)
+
         # Encode image
         px_len = width * height
         px = np.zeros((3,), dtype=np.uint8)  # current pixel
@@ -244,6 +245,7 @@ def qoi_encode(mat: np.ndarray, path, debug=False):
         run = 0  # run length
         mat_pos = 0  # image matrix index position
         index_table = np.zeros((64, 3), dtype=np.uint8)
+
         # Start encoding
         for mat_pos in range(px_len):
             px = mat[mat_pos]
@@ -310,6 +312,7 @@ def decode_rgb(f, index_table):
     g = int.from_bytes(f.read(1), 'big')
     b = int.from_bytes(f.read(1), 'big')
     px = np.asarray([r, g, b], dtype=np.uint8)
+
     # Assign index table
     index_pos = qoi_color_hash(r, g, b)
     index_table[index_pos] = px
@@ -368,6 +371,7 @@ def qoi_decode(path, debug=False):
         header.read_buffer(buffer)
         if debug:
             header.show_attribute()
+
         # Decode qoi chunks
         px_len = header.width * header.height
         px = np.zeros((3,), dtype=np.uint8)
@@ -375,6 +379,7 @@ def qoi_decode(path, debug=False):
         mat_pos = 0
         run = 0
         index_table = np.zeros((64, 3), dtype=np.uint8)
+
         # Start decoding
         while mat_pos < px_len:
             # Decode run chunk

@@ -12,6 +12,8 @@ This is a python practice project for myself to learn qoi format and try to writ
 ![test image](./data/background.jpg)
 
 ```shell
+# make sure you have the dependencies installed
+$python3 test_qoi.py
 $tree --du -h ./output/
 [ 13M]  .
 ├── [374K]  test.jpg
