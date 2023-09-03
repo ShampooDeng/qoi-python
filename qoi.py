@@ -1,4 +1,6 @@
 import struct
+import numpy as np
+import os
 
 QOI_HEADER = struct.Struct(">4sIIBB")
 QOI_ENDER = struct.Struct(">BBBBBBBB")
@@ -153,7 +155,7 @@ def pack_qoi_op_diff(dr, dg, db):
     diffs = [dr, dg, db]
     mask = 0b00000011
     for i in range(3):
-        value = value | ((mask & diffs[i]) << 2*(2-i))
+        value = value | ((mask & diffs[i]) << 2 * (2 - i))
 
     return QOI_OP_DIFF.pack(value)
 
@@ -224,12 +226,179 @@ def pack_qoi_op_run(run_length):
 
 
 def qoi_color_hash(r, g, b, a=255):
-    return (r*3 + g*5 + b*7 + a*11) % 64
+    return (r * 3 + g * 5 + b * 7 + a * 11) % 64
 
 
-# def qoi_encode(path):
-#     pass
+def qoi_encode(mat: np.ndarray, path, debug=False):
+    height, width = mat.shape[0], mat.shape[1]
+    # Flatten image matrix
+    mat = mat.reshape((width * height, 3))
+    with open(path, 'wb') as f:
+        # Write qoi image header
+        header = pack_qoi_header(width, height)
+        f.write(header)
+        # Encode image
+        px_len = width * height
+        px = np.zeros((3,), dtype=np.uint8)  # current pixel
+        px_pre = px  # previous pixel
+        run = 0  # run length
+        mat_pos = 0  # image matrix index position
+        index_table = np.zeros((64, 3), dtype=np.uint8)
+        # Start encoding
+        for mat_pos in range(px_len):
+            px = mat[mat_pos]
+            if np.array_equal(px, px_pre) and mat_pos != 0 and run < 62:
+                run += 1
+                # Write qoi end marker
+                if mat_pos == px_len - 1:
+                    f.write(pack_qoi_op_run(run))
+            else:
+                # Write run chunk
+                if run != 0:
+                    f.write(pack_qoi_op_run(run))
+                    # Clean run after write run chunk
+                    run = 0
+                # Process current pixel
+                r = int(px[0])  # int(pixel value) to avoid overflow.
+                g = int(px[1])
+                b = int(px[2])
+                index_pos = qoi_color_hash(r, g, b)
+                if np.array_equal(index_table[index_pos], px):
+                    f.write(pack_qoi_op_index(index_pos))
+                else:
+                    dr = r - int(px_pre[0])
+                    dg = g - int(px_pre[1])
+                    db = b - int(px_pre[2])
+                    drg = dr - dg
+                    dbg = db - dg
+                    if (dr > -3 and dr < 2)\
+                            and (dg > -3 and dg < 2)\
+                            and (db > -3 and db < 2):
+                        f.write(pack_qoi_op_diff(dr, dg, db))
+                    elif (dg > -33 and dg < 32)\
+                            and (drg > -9 and drg < 8)\
+                            and (dbg > -9 and dbg < 8):
+                        f.write(pack_qoi_op_luma(drg, dg, dbg))
+                    else:
+                        f.write(pack_qoi_op_rgb(r, g, b))
+                        index_table[index_pos] = px
+            px_pre = px
+        f.write(END_MARKER)
+    return 1
 
 
-# def qoi_decode():
-#     pass
+def read_sign_byte(byte, bit):
+    if bit == 2:
+        mask = 0x02
+        if (byte & mask) >> 1 == 1:
+            byte = -1 - (~byte & 0x03)
+    elif bit == 4:
+        mask = 0x08
+        if (byte & mask) >> 3 == 1:
+            byte = -1 - (~byte & 0x0f)
+    elif bit == 6:
+        mask = 0x20
+        if (byte & mask) >> 5 == 1:
+            byte = -1 - (~byte & 0x3f)
+    else:
+        return None
+    return byte
+
+
+def decode_rgb(f, index_table):
+    r = int.from_bytes(f.read(1), 'big')
+    g = int.from_bytes(f.read(1), 'big')
+    b = int.from_bytes(f.read(1), 'big')
+    px = np.asarray([r, g, b], dtype=np.uint8)
+    # Assign index table
+    index_pos = qoi_color_hash(r, g, b)
+    index_table[index_pos] = px
+    return px
+
+
+def decode_diff(buffer, px, debug=False):
+    dr = (buffer & 0x30) >> 4
+    dr = read_sign_byte(dr, 2)
+    dg = (buffer & 0x0c) >> 2
+    dg = read_sign_byte(dg, 2)
+    db = (buffer & 0x03)
+    db = read_sign_byte(db, 2)
+    px = (px + np.asarray([dr, dg, db])).astype(np.uint8)
+    if debug:
+        print('diff')
+        print(bin(buffer))
+        print(dr, dg, db)
+    return px
+
+
+def decode_luma(f, buffer, px, debug=False):
+    dg = (buffer & 0x3f)
+    dg = read_sign_byte(dg, 6)
+    another_buffer = int.from_bytes(f.read(1), 'big')
+    drg = (another_buffer & 0xf0) >> 4
+    drg = read_sign_byte(drg, 4)
+    dbg = another_buffer & 0x0f
+    dbg = read_sign_byte(dbg, 4)
+    dr = drg + dg
+    db = dbg + dg
+    px = (px + np.asarray([dr, dg, db])).astype(np.uint8)
+    if debug:
+        print('luma')
+        print(bin(another_buffer))
+        print(drg, dg, dbg)
+        print(dr, dg, db)
+        print(px.dtype)
+    return px
+
+
+def decode_index(buffer, index_table):
+    index_pos = buffer & 0x3f
+    px = index_table[index_pos]
+    return px
+
+
+def qoi_decode(path, debug=False):
+    # Check if path is valid
+    if not os.path.isfile(path):
+        return None
+    with open(path, 'rb') as f:
+        # Read qoi image header
+        buffer = f.read(QOI_HEADER.size)
+        header = Qoi_header()
+        header.read_buffer(buffer)
+        if debug:
+            header.show_attribute()
+        # Decode qoi chunks
+        px_len = header.width * header.height
+        px = np.zeros((3,), dtype=np.uint8)
+        mat = np.zeros((px_len, 3), dtype=np.uint8)  # flattened image matrix
+        mat_pos = 0
+        run = 0
+        index_table = np.zeros((64, 3), dtype=np.uint8)
+        # Start decoding
+        while mat_pos < px_len:
+            # Decode run chunk
+            if run != 0:
+                run -= 1
+                mat[mat_pos] = px
+                mat_pos += 1
+                continue
+            buffer = int.from_bytes(f.read(1), 'big')
+            if buffer == QOI_TAG_RGB:
+                px = decode_rgb(f, index_table)
+            elif buffer == QOI_TAG_RGBA:
+                pass
+            else:
+                tag = (buffer & 0xc0)
+                if tag == QOI_TAG_RUN:
+                    run = (buffer & 0x3f) + 1
+                    run -= 1
+                elif tag == QOI_TAG_DIFF:
+                    px = decode_diff(buffer, px)
+                elif tag == QOI_TAG_LUMA:
+                    px = decode_luma(f, buffer, px)
+                elif tag == QOI_TAG_INDEX:
+                    px = decode_index(buffer, index_table)
+            mat[mat_pos] = px
+            mat_pos += 1
+    return mat.reshape((header.height, header.width, 3))

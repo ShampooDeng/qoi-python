@@ -12,7 +12,7 @@ This is a python practice project for myself to learn qoi format and try to writ
 ![test image](./data/background.jpg)
 
 ```shell
-$tree --du -h
+$tree --du -h ./output/
 [ 13M]  .
 ├── [374K]  test.jpg
 ├── [5.9M]  test.npy
@@ -41,3 +41,4 @@ todo:
 * [ ] support rgba images
 * [ ] add error checking when pixel value overflows
 * [ ] make it python library
+* [x] move `qoi_decode` and `qoi_encode` into qoi.py
