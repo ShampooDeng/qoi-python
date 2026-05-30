@@ -69,6 +69,10 @@ class TestQoiHeaderAndPacking(unittest.TestCase):
         with self.assertRaises(AssertionError):
             qoi.pack_qoi_op_diff(0, 0, -3)
 
+    def test_pack_qoi_op_diff_boundary_bias_encoding(self):
+        self.assertEqual(qoi.pack_qoi_op_diff(-2, -2, -2), b"\x40")
+        self.assertEqual(qoi.pack_qoi_op_diff(1, 1, 1), b"\x7f")
+
     def test_pack_qoi_op_luma_rejects_out_of_range_values(self):
         with self.assertRaises(AssertionError):
             qoi.pack_qoi_op_luma(-9, 0, 0)
@@ -78,6 +82,10 @@ class TestQoiHeaderAndPacking(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             qoi.pack_qoi_op_luma(0, 0, 8)
+
+    def test_pack_qoi_op_luma_boundary_bias_encoding(self):
+        self.assertEqual(qoi.pack_qoi_op_luma(-8, -32, -8), b"\x80\x00")
+        self.assertEqual(qoi.pack_qoi_op_luma(7, 31, 7), b"\xbf\xff")
 
     def test_qoi_color_hash_matches_formula(self):
         self.assertEqual(
@@ -225,6 +233,71 @@ class TestQoiCodecIntegration(unittest.TestCase):
 
         self.assertEqual(decoded.shape, (3, 10, 3))
         self.assertTrue(np.array_equal(decoded, expected_pixels))
+
+    def test_run_boundary_lengths_round_trip(self):
+        image = np.asarray(
+            [[[17, 34, 51]]] * 63 + [[[80, 90, 100]]] * 2,
+            dtype=np.uint8,
+        ).reshape((1, 65, 3))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "run_boundary.qoi"
+            qoi.qoi_encode(image, path)
+            data = path.read_bytes()
+            decoded = qoi.qoi_decode(path)
+
+        self.assertIn(qoi.pack_qoi_op_run(62), data)
+        self.assertEqual(decoded.shape, image.shape)
+        self.assertTrue(np.array_equal(decoded, image))
+
+    def test_decode_validates_end_marker(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "bad_end_marker.qoi"
+            with path.open("wb") as f:
+                f.write(qoi.pack_qoi_header(1, 1))
+                f.write(qoi.pack_qoi_op_rgb(1, 2, 3))
+                f.write(b"\x00\x00\x00\x00\x00\x00\x00\x00")
+
+            with self.assertRaises(AssertionError):
+                qoi.qoi_decode(path)
+
+    def test_index_table_updates_after_diff_and_luma_paths(self):
+        image = np.asarray(
+            [
+                [[100, 100, 100], [101, 101, 101], [50, 50, 50]],
+                [[100, 100, 100], [99, 99, 99], [100, 100, 100]],
+            ],
+            dtype=np.uint8,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "index_updates.qoi"
+            qoi.qoi_encode(image, path)
+            data = path.read_bytes()
+            decoded = qoi.qoi_decode(path)
+
+        self.assertEqual(decoded.shape, image.shape)
+        self.assertTrue(np.array_equal(decoded, image))
+        self.assertIn(qoi.pack_qoi_op_index(qoi.qoi_color_hash(100, 100, 100)), data)
+
+    def test_encode_rejects_rgba_images(self):
+        image = np.zeros((2, 2, 4), dtype=np.uint8)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "rgba_input.qoi"
+            with self.assertRaises(NotImplementedError):
+                qoi.qoi_encode(image, path)
+
+    def test_decode_rejects_rgba_header(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "rgba_header.qoi"
+            with path.open("wb") as f:
+                f.write(qoi.pack_qoi_header(1, 1, channel_num=4))
+                f.write(qoi.pack_qoi_op_rgba(1, 2, 3, 4))
+                f.write(qoi.END_MARKER)
+
+            with self.assertRaises(NotImplementedError):
+                qoi.qoi_decode(path)
 
     @staticmethod
     def _write_manual_case(path: Path) -> None:

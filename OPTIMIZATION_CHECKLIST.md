@@ -77,18 +77,18 @@ Concrete execution checklist for optimizing `qoi.py` while keeping `OPTIMIZATION
 
 ## Phase 5 — Correctness hardening
 
-- [ ] Verify DIFF encoding matches QOI bias rules
-- [ ] Verify DIFF decoding matches QOI bias rules
-- [ ] Verify LUMA encoding matches QOI bias rules
-- [ ] Verify LUMA decoding matches QOI bias rules
-- [ ] Verify index table updates happen on all required pixel-producing paths
-- [ ] Verify RUN handling at boundaries (1 and 62)
-- [ ] Verify end-marker handling is correct
-- [ ] Decide whether to explicitly reject RGBA for now or implement it later
-- [ ] Add targeted tests for DIFF boundary values
-- [ ] Add targeted tests for LUMA boundary values
-- [ ] Add targeted tests for RUN behavior
-- [ ] Add targeted tests for INDEX reuse behavior
+- [x] Verify DIFF encoding matches QOI bias rules
+- [x] Verify DIFF decoding matches QOI bias rules
+- [x] Verify LUMA encoding matches QOI bias rules
+- [x] Verify LUMA decoding matches QOI bias rules
+- [x] Verify index table updates happen on all required pixel-producing paths
+- [x] Verify RUN handling at boundaries (1 and 62)
+- [x] Verify end-marker handling is correct
+- [x] Decide whether to explicitly reject RGBA for now or implement it later
+- [x] Add targeted tests for DIFF boundary values
+- [x] Add targeted tests for LUMA boundary values
+- [x] Add targeted tests for RUN behavior
+- [x] Add targeted tests for INDEX reuse behavior
 
 ## Final validation
 
