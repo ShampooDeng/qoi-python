@@ -248,12 +248,14 @@ def qoi_encode(mat: np.ndarray, path, debug=False):
 
     out = bytearray()
     out.extend(pack_qoi_header(width, height))
+    out_append = out.append
 
     px_len = width * height
     pr = 0
     pg = 0
     pb = 0
     run = 0
+    hash_seed = 53  # (255 * 11) % 64
     index_table = [0] * 64
 
     for mat_pos in range(px_len):
@@ -265,16 +267,16 @@ def qoi_encode(mat: np.ndarray, path, debug=False):
         if r == pr and g == pg and b == pb and mat_pos != 0 and run < 62:
             run += 1
             if mat_pos == px_len - 1:
-                out.extend(pack_qoi_op_run(run))
+                out_append(QOI_TAG_RUN | (run - 1))
         else:
             if run != 0:
-                out.extend(pack_qoi_op_run(run))
+                out_append(QOI_TAG_RUN | (run - 1))
                 run = 0
 
-            packed_px = pack_rgb24(r, g, b)
-            index_pos = qoi_color_hash(r, g, b)
+            packed_px = (r << 16) | (g << 8) | b
+            index_pos = (r * 3 + g * 5 + b * 7 + hash_seed) & 63
             if index_table[index_pos] == packed_px:
-                out.extend(pack_qoi_op_index(index_pos))
+                out_append(index_pos)
             else:
                 dr = r - pr
                 dg = g - pg
@@ -282,11 +284,20 @@ def qoi_encode(mat: np.ndarray, path, debug=False):
                 drg = dr - dg
                 dbg = db - dg
                 if (-3 < dr < 2) and (-3 < dg < 2) and (-3 < db < 2):
-                    out.extend(pack_qoi_op_diff(dr, dg, db))
+                    out_append(
+                        QOI_TAG_DIFF
+                        | ((dr & 0x03) << 4)
+                        | ((dg & 0x03) << 2)
+                        | (db & 0x03)
+                    )
                 elif (-33 < dg < 32) and (-9 < drg < 8) and (-9 < dbg < 8):
-                    out.extend(pack_qoi_op_luma(drg, dg, dbg))
+                    out_append(QOI_TAG_LUMA | (dg & 0x3F))
+                    out_append(((drg & 0x0F) << 4) | (dbg & 0x0F))
                 else:
-                    out.extend(pack_qoi_op_rgb(r, g, b))
+                    out_append(QOI_TAG_RGB)
+                    out_append(r)
+                    out_append(g)
+                    out_append(b)
                     index_table[index_pos] = packed_px
 
         pr = r
@@ -332,12 +343,15 @@ def decode_rgb(payload, pos, index_table):
 
 
 def decode_diff(buffer, r, g, b, debug=False):
-    dr = (buffer & 0x30) >> 4
-    dr = read_sign_byte(dr, 2)
-    dg = (buffer & 0x0C) >> 2
-    dg = read_sign_byte(dg, 2)
+    dr = (buffer >> 4) & 0x03
+    if dr & 0x02:
+        dr -= 0x04
+    dg = (buffer >> 2) & 0x03
+    if dg & 0x02:
+        dg -= 0x04
     db = buffer & 0x03
-    db = read_sign_byte(db, 2)
+    if db & 0x02:
+        db -= 0x04
     r = (r + dr) & 0xFF
     g = (g + dg) & 0xFF
     b = (b + db) & 0xFF
@@ -350,16 +364,19 @@ def decode_diff(buffer, r, g, b, debug=False):
 
 def decode_luma(payload, pos, buffer, r, g, b, debug=False):
     dg = buffer & 0x3F
-    dg = read_sign_byte(dg, 6)
+    if dg & 0x20:
+        dg -= 0x40
     if pos >= len(payload):
         raise AssertionError("Unexpected end of QOI payload while reading QOI_OP_LUMA")
 
     another_buffer = payload[pos]
     pos += 1
-    drg = (another_buffer & 0xF0) >> 4
-    drg = read_sign_byte(drg, 4)
+    drg = (another_buffer >> 4) & 0x0F
+    if drg & 0x08:
+        drg -= 0x10
     dbg = another_buffer & 0x0F
-    dbg = read_sign_byte(dbg, 4)
+    if dbg & 0x08:
+        dbg -= 0x10
     dr = drg + dg
     db = dbg + dg
     r = (r + dr) & 0xFF
@@ -398,6 +415,8 @@ def qoi_decode(path, debug=False):
     mat_pos = 0
     run = 0
     pos = 0
+    payload_len = len(payload)
+    hash_seed = 53  # (255 * 11) % 64
     index_table = [0] * 64
 
     while mat_pos < px_len:
@@ -409,26 +428,67 @@ def qoi_decode(path, debug=False):
             mat_pos += 1
             continue
 
-        if pos >= len(payload):
+        if pos >= payload_len:
             raise AssertionError("Unexpected end of QOI payload while decoding image")
 
         buffer = payload[pos]
         pos += 1
         if buffer == QOI_TAG_RGB:
-            r, g, b, pos = decode_rgb(payload, pos, index_table)
+            if pos + 3 > payload_len:
+                raise AssertionError(
+                    "Unexpected end of QOI payload while reading QOI_OP_RGB"
+                )
+
+            r = payload[pos]
+            g = payload[pos + 1]
+            b = payload[pos + 2]
+            pos += 3
+            index_pos = (r * 3 + g * 5 + b * 7 + hash_seed) & 63
+            index_table[index_pos] = (r << 16) | (g << 8) | b
         elif buffer == QOI_TAG_RGBA:
             pass
         else:
             tag = buffer & 0xC0
             if tag == QOI_TAG_RUN:
-                run = (buffer & 0x3F) + 1
-                run -= 1
+                run = buffer & 0x3F
             elif tag == QOI_TAG_DIFF:
-                r, g, b = decode_diff(buffer, r, g, b)
+                dr = (buffer >> 4) & 0x03
+                if dr & 0x02:
+                    dr -= 0x04
+                dg = (buffer >> 2) & 0x03
+                if dg & 0x02:
+                    dg -= 0x04
+                db = buffer & 0x03
+                if db & 0x02:
+                    db -= 0x04
+                r = (r + dr) & 0xFF
+                g = (g + dg) & 0xFF
+                b = (b + db) & 0xFF
             elif tag == QOI_TAG_LUMA:
-                r, g, b, pos = decode_luma(payload, pos, buffer, r, g, b)
+                if pos >= payload_len:
+                    raise AssertionError(
+                        "Unexpected end of QOI payload while reading QOI_OP_LUMA"
+                    )
+
+                dg = buffer & 0x3F
+                if dg & 0x20:
+                    dg -= 0x40
+                another_buffer = payload[pos]
+                pos += 1
+                drg = (another_buffer >> 4) & 0x0F
+                if drg & 0x08:
+                    drg -= 0x10
+                dbg = another_buffer & 0x0F
+                if dbg & 0x08:
+                    dbg -= 0x10
+                r = (r + drg + dg) & 0xFF
+                g = (g + dg) & 0xFF
+                b = (b + dbg + dg) & 0xFF
             elif tag == QOI_TAG_INDEX:
-                r, g, b = decode_index(buffer, index_table)
+                packed = index_table[buffer & 0x3F]
+                r = (packed >> 16) & 0xFF
+                g = (packed >> 8) & 0xFF
+                b = packed & 0xFF
 
         mat[mat_pos, 0] = r
         mat[mat_pos, 1] = g

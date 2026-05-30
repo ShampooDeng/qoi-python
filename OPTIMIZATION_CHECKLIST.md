@@ -65,15 +65,15 @@ Concrete execution checklist for optimizing `qoi.py` while keeping `OPTIMIZATION
 
 ## Phase 4 — Reduce helper-call overhead
 
-- [ ] Identify hottest helper calls in encode/decode paths
-- [ ] Inline the hottest decode branch logic where helpful
-- [ ] Inline the hottest encode branch logic where helpful
-- [ ] Replace `read_sign_byte()` with direct arithmetic for QOI field decoding
-- [ ] Bind frequently used constants to local variables in hot functions
-- [ ] Bind frequently used methods locally if it improves hot-path performance
-- [ ] Minimize temporary allocations inside branch-heavy code
-- [ ] Re-run tests after each small refactor batch
-- [ ] Re-measure encode/decode performance
+- [x] Identify hottest helper calls in encode/decode paths
+- [x] Inline the hottest decode branch logic where helpful
+- [x] Inline the hottest encode branch logic where helpful
+- [x] Replace `read_sign_byte()` with direct arithmetic for QOI field decoding
+- [x] Bind frequently used constants to local variables in hot functions
+- [x] Bind frequently used methods locally if it improves hot-path performance
+- [x] Minimize temporary allocations inside branch-heavy code
+- [x] Re-run tests after each small refactor batch
+- [x] Re-measure encode/decode performance
 
 ## Phase 5 — Correctness hardening
 
