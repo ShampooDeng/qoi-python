@@ -84,6 +84,12 @@ class TestQoiHeaderAndPacking(unittest.TestCase):
             qoi.qoi_color_hash(1, 2, 3), (1 * 3 + 2 * 5 + 3 * 7 + 255 * 11) % 64
         )
 
+    def test_pack_and_unpack_rgb24_round_trip(self):
+        packed = qoi.pack_rgb24(10, 20, 30)
+
+        self.assertEqual(packed, (10 << 16) | (20 << 8) | 30)
+        self.assertEqual(qoi.unpack_rgb24(packed), (10, 20, 30))
+
 
 class TestQoiDecodeHelpers(unittest.TestCase):
     def test_read_sign_byte_for_2_bit_values(self):
@@ -113,46 +119,39 @@ class TestQoiDecodeHelpers(unittest.TestCase):
         self.assertIsNone(qoi.read_sign_byte(0, 3))
 
     def test_decode_rgb_reads_pixel_and_updates_index_table(self):
-        index_table = np.zeros((64, 3), dtype=np.uint8)
+        index_table = [0] * 64
         payload = memoryview(b"\x0a\x14\x1e")
 
-        px, pos = qoi.decode_rgb(payload, 0, index_table)
+        r, g, b, pos = qoi.decode_rgb(payload, 0, index_table)
 
-        expected = np.asarray([10, 20, 30], dtype=np.uint8)
         index_pos = qoi.qoi_color_hash(10, 20, 30)
 
         self.assertEqual(pos, 3)
-        self.assertTrue(np.array_equal(px, expected))
-        self.assertTrue(np.array_equal(index_table[index_pos], expected))
+        self.assertEqual((r, g, b), (10, 20, 30))
+        self.assertEqual(index_table[index_pos], qoi.pack_rgb24(10, 20, 30))
 
     def test_pack_and_decode_diff_round_trip(self):
-        previous = np.asarray([10, 20, 30], dtype=np.uint8)
         chunk = qoi.pack_qoi_op_diff(-2, 1, -1)
 
-        decoded = qoi.decode_diff(chunk[0], previous.copy())
-        expected = np.asarray([8, 21, 29], dtype=np.uint8)
+        decoded = qoi.decode_diff(chunk[0], 10, 20, 30)
 
-        self.assertTrue(np.array_equal(decoded, expected))
+        self.assertEqual(decoded, (8, 21, 29))
 
     def test_pack_and_decode_luma_round_trip(self):
-        previous = np.asarray([58, 58, 58], dtype=np.uint8)
         chunk = qoi.pack_qoi_op_luma(-3, -30, -5)
 
-        decoded, pos = qoi.decode_luma(
-            memoryview(chunk[1:]), 0, chunk[0], previous.copy()
-        )
-        expected = np.asarray([25, 28, 23], dtype=np.uint8)
+        r, g, b, pos = qoi.decode_luma(memoryview(chunk[1:]), 0, chunk[0], 58, 58, 58)
 
         self.assertEqual(pos, 1)
-        self.assertTrue(np.array_equal(decoded, expected))
+        self.assertEqual((r, g, b), (25, 28, 23))
 
     def test_decode_index_returns_cached_pixel(self):
-        index_table = np.zeros((64, 3), dtype=np.uint8)
-        index_table[7] = np.asarray([99, 88, 77], dtype=np.uint8)
+        index_table = [0] * 64
+        index_table[7] = qoi.pack_rgb24(99, 88, 77)
 
         px = qoi.decode_index(7, index_table)
 
-        self.assertTrue(np.array_equal(px, np.asarray([99, 88, 77], dtype=np.uint8)))
+        self.assertEqual(px, (99, 88, 77))
 
 
 class TestQoiCodecIntegration(unittest.TestCase):

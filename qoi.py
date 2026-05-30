@@ -1,6 +1,7 @@
-import struct
-import numpy as np
 import os
+import struct
+
+import numpy as np
 
 QOI_HEADER = struct.Struct(">4sIIBB")
 QOI_ENDER = struct.Struct(">BBBBBBBB")
@@ -36,10 +37,10 @@ class Qoi_header:
 
     def show_attribute(self):
         print(
-            f"width:{self.width},\
-                height:{self.height},\
-                channels:{self.channels},\
-                colorspace:{self.colorspace}"
+            f"width:{self.width},"
+            f"                height:{self.height},"
+            f"                channels:{self.channels},"
+            f"                colorspace:{self.colorspace}"
         )
 
 
@@ -121,7 +122,7 @@ def pack_qoi_op_index(index):
     chunks to the same index. QOI_OP_RUN should be used instead.
     """
 
-    assert index >= 0 and index <= 63, "index out of range"
+    assert 0 <= index <= 63, "index out of range"
     return QOI_OP_INDEX.pack(index)
 
 
@@ -146,9 +147,9 @@ def pack_qoi_op_diff(dr, dg, db):
 
     The alpha value remains unchanged from the previous pixel.
     """
-    value = 0  # Initial value
+    value = 0
     tag = 0b01000000
-    value = value | tag
+    value |= tag
 
     assert (
         (dr <= 1 and dr >= -2) and (dg <= 1 and dg >= -2) and (db <= 1 and db >= -2)
@@ -157,7 +158,7 @@ def pack_qoi_op_diff(dr, dg, db):
     diffs = [dr, dg, db]
     mask = 0b00000011
     for i in range(3):
-        value = value | ((mask & diffs[i]) << 2 * (2 - i))
+        value |= (mask & diffs[i]) << 2 * (2 - i)
 
     return QOI_OP_DIFF.pack(value)
 
@@ -191,17 +192,17 @@ def pack_qoi_op_luma(drg, dg, dbg):
     """
     tag = 0x80
     byte1, byte2 = 0, 0
-    byte1 = tag | byte1
+    byte1 |= tag
 
-    assert drg <= 7 and drg >= -8, "drg out of range"
-    assert dg <= 31 and dg >= -32, "dg out of range"
-    assert dbg <= 7 and dbg >= -8, "dbg out of range"
+    assert -8 <= drg <= 7, "drg out of range"
+    assert -32 <= dg <= 31, "dg out of range"
+    assert -8 <= dbg <= 7, "dbg out of range"
 
     mask_6 = 0x3F
     mask_4 = 0x0F
-    byte1 = byte1 | (mask_6 & dg)
-    byte2 = byte2 | ((mask_4 & drg) << 4)
-    byte2 = byte2 | (mask_4 & dbg)
+    byte1 |= mask_6 & dg
+    byte2 |= (mask_4 & drg) << 4
+    byte2 |= mask_4 & dbg
 
     return QOI_OP_LUMA.pack(byte1, byte2)
 
@@ -221,7 +222,7 @@ def pack_qoi_op_run(run_length):
     (b111110 and b111111) are illegal as they are occupied by the QOI_OP_RGB and
     QOI_OP_RGBA tags.
     """
-    tag = 0xC0  # b11000000
+    tag = 0xC0
     assert (run_length > 0) and (run_length < 63), "run_length out of range"
     value = tag | (run_length - 1)
     return QOI_OP_RUN.pack(value)
@@ -231,66 +232,66 @@ def qoi_color_hash(r, g, b, a=255):
     return (r * 3 + g * 5 + b * 7 + a * 11) % 64
 
 
+def pack_rgb24(r, g, b):
+    return (r << 16) | (g << 8) | b
+
+
+def unpack_rgb24(value):
+    return (value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF
+
+
 def qoi_encode(mat: np.ndarray, path, debug=False):
+    del debug
+
     height, width = mat.shape[0], mat.shape[1]
-    # Flatten image matrix
     mat = mat.reshape((width * height, 3))
     with open(path, "wb") as f:
-        # Write qoi image header
-        header = pack_qoi_header(width, height)
-        f.write(header)
+        f.write(pack_qoi_header(width, height))
 
-        # Encode image
         px_len = width * height
-        px = np.zeros((3,), dtype=np.uint8)  # current pixel
-        px_pre = px  # previous pixel
-        run = 0  # run length
-        mat_pos = 0  # image matrix index position
-        index_table = np.zeros((64, 3), dtype=np.uint8)
+        pr = 0
+        pg = 0
+        pb = 0
+        run = 0
+        index_table = [0] * 64
 
-        # Start encoding
         for mat_pos in range(px_len):
             px = mat[mat_pos]
-            if np.array_equal(px, px_pre) and mat_pos != 0 and run < 62:
+            r = int(px[0])
+            g = int(px[1])
+            b = int(px[2])
+
+            if r == pr and g == pg and b == pb and mat_pos != 0 and run < 62:
                 run += 1
-                # Write qoi end marker
                 if mat_pos == px_len - 1:
                     f.write(pack_qoi_op_run(run))
             else:
-                # Write run chunk
                 if run != 0:
                     f.write(pack_qoi_op_run(run))
-                    # Clean run after write run chunk
                     run = 0
-                # Process current pixel
-                r = int(px[0])  # int(pixel value) to avoid overflow.
-                g = int(px[1])
-                b = int(px[2])
+
+                packed_px = pack_rgb24(r, g, b)
                 index_pos = qoi_color_hash(r, g, b)
-                if np.array_equal(index_table[index_pos], px):
+                if index_table[index_pos] == packed_px:
                     f.write(pack_qoi_op_index(index_pos))
                 else:
-                    dr = r - int(px_pre[0])
-                    dg = g - int(px_pre[1])
-                    db = b - int(px_pre[2])
+                    dr = r - pr
+                    dg = g - pg
+                    db = b - pb
                     drg = dr - dg
                     dbg = db - dg
-                    if (
-                        (dr > -3 and dr < 2)
-                        and (dg > -3 and dg < 2)
-                        and (db > -3 and db < 2)
-                    ):
+                    if (-3 < dr < 2) and (-3 < dg < 2) and (-3 < db < 2):
                         f.write(pack_qoi_op_diff(dr, dg, db))
-                    elif (
-                        (dg > -33 and dg < 32)
-                        and (drg > -9 and drg < 8)
-                        and (dbg > -9 and dbg < 8)
-                    ):
+                    elif (-33 < dg < 32) and (-9 < drg < 8) and (-9 < dbg < 8):
                         f.write(pack_qoi_op_luma(drg, dg, dbg))
                     else:
                         f.write(pack_qoi_op_rgb(r, g, b))
-                        index_table[index_pos] = px
-            px_pre = px
+                        index_table[index_pos] = packed_px
+
+            pr = r
+            pg = g
+            pb = b
+
         f.write(END_MARKER)
     return 1
 
@@ -321,30 +322,30 @@ def decode_rgb(payload, pos, index_table):
     g = payload[pos + 1]
     b = payload[pos + 2]
     pos += 3
-    px = np.asarray([r, g, b], dtype=np.uint8)
 
-    # Assign index table
     index_pos = qoi_color_hash(r, g, b)
-    index_table[index_pos] = px
-    return px, pos
+    index_table[index_pos] = pack_rgb24(r, g, b)
+    return r, g, b, pos
 
 
-def decode_diff(buffer, px, debug=False):
+def decode_diff(buffer, r, g, b, debug=False):
     dr = (buffer & 0x30) >> 4
     dr = read_sign_byte(dr, 2)
     dg = (buffer & 0x0C) >> 2
     dg = read_sign_byte(dg, 2)
     db = buffer & 0x03
     db = read_sign_byte(db, 2)
-    px = (px + np.asarray([dr, dg, db])).astype(np.uint8)
+    r = (r + dr) & 0xFF
+    g = (g + dg) & 0xFF
+    b = (b + db) & 0xFF
     if debug:
         print("diff")
         print(bin(buffer))
         print(dr, dg, db)
-    return px
+    return r, g, b
 
 
-def decode_luma(payload, pos, buffer, px, debug=False):
+def decode_luma(payload, pos, buffer, r, g, b, debug=False):
     dg = buffer & 0x3F
     dg = read_sign_byte(dg, 6)
     if pos >= len(payload):
@@ -358,28 +359,26 @@ def decode_luma(payload, pos, buffer, px, debug=False):
     dbg = read_sign_byte(dbg, 4)
     dr = drg + dg
     db = dbg + dg
-    px = (px + np.asarray([dr, dg, db])).astype(np.uint8)
+    r = (r + dr) & 0xFF
+    g = (g + dg) & 0xFF
+    b = (b + db) & 0xFF
     if debug:
         print("luma")
         print(bin(another_buffer))
         print(drg, dg, dbg)
         print(dr, dg, db)
-        print(px.dtype)
-    return px, pos
+    return r, g, b, pos
 
 
 def decode_index(buffer, index_table):
     index_pos = buffer & 0x3F
-    px = index_table[index_pos]
-    return px
+    return unpack_rgb24(index_table[index_pos])
 
 
 def qoi_decode(path, debug=False):
-    # Check if path is valid
     if not os.path.isfile(path):
         return None
     with open(path, "rb") as f:
-        # Read qoi image header
         buffer = f.read(QOI_HEADER.size)
         header = Qoi_header()
         header.read_buffer(buffer)
@@ -388,21 +387,22 @@ def qoi_decode(path, debug=False):
 
         payload = memoryview(f.read())
 
-    # Decode qoi chunks
     px_len = header.width * header.height
-    px = np.zeros((3,), dtype=np.uint8)
-    mat = np.zeros((px_len, 3), dtype=np.uint8)  # flattened image matrix
+    r = 0
+    g = 0
+    b = 0
+    mat = np.zeros((px_len, 3), dtype=np.uint8)
     mat_pos = 0
     run = 0
     pos = 0
-    index_table = np.zeros((64, 3), dtype=np.uint8)
+    index_table = [0] * 64
 
-    # Start decoding
     while mat_pos < px_len:
-        # Decode run chunk
         if run != 0:
             run -= 1
-            mat[mat_pos] = px
+            mat[mat_pos, 0] = r
+            mat[mat_pos, 1] = g
+            mat[mat_pos, 2] = b
             mat_pos += 1
             continue
 
@@ -412,7 +412,7 @@ def qoi_decode(path, debug=False):
         buffer = payload[pos]
         pos += 1
         if buffer == QOI_TAG_RGB:
-            px, pos = decode_rgb(payload, pos, index_table)
+            r, g, b, pos = decode_rgb(payload, pos, index_table)
         elif buffer == QOI_TAG_RGBA:
             pass
         else:
@@ -421,11 +421,15 @@ def qoi_decode(path, debug=False):
                 run = (buffer & 0x3F) + 1
                 run -= 1
             elif tag == QOI_TAG_DIFF:
-                px = decode_diff(buffer, px)
+                r, g, b = decode_diff(buffer, r, g, b)
             elif tag == QOI_TAG_LUMA:
-                px, pos = decode_luma(payload, pos, buffer, px)
+                r, g, b, pos = decode_luma(payload, pos, buffer, r, g, b)
             elif tag == QOI_TAG_INDEX:
-                px = decode_index(buffer, index_table)
-        mat[mat_pos] = px
+                r, g, b = decode_index(buffer, index_table)
+
+        mat[mat_pos, 0] = r
+        mat[mat_pos, 1] = g
+        mat[mat_pos, 2] = b
         mat_pos += 1
+
     return mat.reshape((header.height, header.width, 3))

@@ -37,20 +37,20 @@ Concrete execution checklist for optimizing `qoi.py` while keeping `OPTIMIZATION
 
 ## Phase 2 — Remove tiny NumPy ops from the hot path
 
-- [ ] Replace current/previous pixel NumPy arrays with scalar RGB state in encode
-- [ ] Replace current/previous pixel NumPy arrays with scalar RGB state in decode
-- [ ] Replace `np.array_equal(px, px_pre)` with scalar comparisons
-- [ ] Replace `np.array_equal(index_table[index_pos], px)` with scalar comparisons
-- [ ] Remove repeated tiny `np.asarray([...], dtype=np.uint8)` allocations in decode
-- [ ] Remove repeated tiny NumPy additions in `decode_diff()`
-- [ ] Remove repeated tiny NumPy additions in `decode_luma()`
-- [ ] Decide on index table representation:
-  - [ ] Option A: packed RGB integers
+- [x] Replace current/previous pixel NumPy arrays with scalar RGB state in encode
+- [x] Replace current/previous pixel NumPy arrays with scalar RGB state in decode
+- [x] Replace `np.array_equal(px, px_pre)` with scalar comparisons
+- [x] Replace `np.array_equal(index_table[index_pos], px)` with scalar comparisons
+- [x] Remove repeated tiny `np.asarray([...], dtype=np.uint8)` allocations in decode
+- [x] Remove repeated tiny NumPy additions in `decode_diff()`
+- [x] Remove repeated tiny NumPy additions in `decode_luma()`
+- [x] Decide on index table representation:
+  - [x] Option A: packed RGB integers
   - [ ] Option B: RGB tuples
-- [ ] Implement the chosen index table representation
-- [ ] Ensure wraparound behavior is preserved for channel arithmetic
-- [ ] Re-run round-trip tests after scalar-state conversion
-- [ ] Re-measure encode and decode performance
+- [x] Implement the chosen index table representation
+- [x] Ensure wraparound behavior is preserved for channel arithmetic
+- [x] Re-run round-trip tests after scalar-state conversion
+- [x] Re-measure encode and decode performance
 
 ## Phase 3 — Buffer encoder output
 
