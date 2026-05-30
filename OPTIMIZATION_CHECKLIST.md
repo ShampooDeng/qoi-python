@@ -54,14 +54,14 @@ Concrete execution checklist for optimizing `qoi.py` while keeping `OPTIMIZATION
 
 ## Phase 3 — Buffer encoder output
 
-- [ ] Replace repeated hot-loop `f.write(...)` calls with a `bytearray`
-- [ ] Append header to the output buffer first
-- [ ] Append chunk bytes to the buffer during encode
-- [ ] Append `END_MARKER` to the buffer at the end
-- [ ] Write the completed buffer once to disk
-- [ ] Confirm encoded files still decode correctly
-- [ ] Compare output size before vs after buffering
-- [ ] Re-measure encode performance and record improvement
+- [x] Replace repeated hot-loop `f.write(...)` calls with a `bytearray`
+- [x] Append header to the output buffer first
+- [x] Append chunk bytes to the buffer during encode
+- [x] Append `END_MARKER` to the buffer at the end
+- [x] Write the completed buffer once to disk
+- [x] Confirm encoded files still decode correctly
+- [x] Compare output size before vs after buffering
+- [x] Re-measure encode performance and record improvement
 
 ## Phase 4 — Reduce helper-call overhead
 

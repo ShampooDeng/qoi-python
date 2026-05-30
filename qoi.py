@@ -245,54 +245,57 @@ def qoi_encode(mat: np.ndarray, path, debug=False):
 
     height, width = mat.shape[0], mat.shape[1]
     mat = mat.reshape((width * height, 3))
-    with open(path, "wb") as f:
-        f.write(pack_qoi_header(width, height))
 
-        px_len = width * height
-        pr = 0
-        pg = 0
-        pb = 0
-        run = 0
-        index_table = [0] * 64
+    out = bytearray()
+    out.extend(pack_qoi_header(width, height))
 
-        for mat_pos in range(px_len):
-            px = mat[mat_pos]
-            r = int(px[0])
-            g = int(px[1])
-            b = int(px[2])
+    px_len = width * height
+    pr = 0
+    pg = 0
+    pb = 0
+    run = 0
+    index_table = [0] * 64
 
-            if r == pr and g == pg and b == pb and mat_pos != 0 and run < 62:
-                run += 1
-                if mat_pos == px_len - 1:
-                    f.write(pack_qoi_op_run(run))
+    for mat_pos in range(px_len):
+        px = mat[mat_pos]
+        r = int(px[0])
+        g = int(px[1])
+        b = int(px[2])
+
+        if r == pr and g == pg and b == pb and mat_pos != 0 and run < 62:
+            run += 1
+            if mat_pos == px_len - 1:
+                out.extend(pack_qoi_op_run(run))
+        else:
+            if run != 0:
+                out.extend(pack_qoi_op_run(run))
+                run = 0
+
+            packed_px = pack_rgb24(r, g, b)
+            index_pos = qoi_color_hash(r, g, b)
+            if index_table[index_pos] == packed_px:
+                out.extend(pack_qoi_op_index(index_pos))
             else:
-                if run != 0:
-                    f.write(pack_qoi_op_run(run))
-                    run = 0
-
-                packed_px = pack_rgb24(r, g, b)
-                index_pos = qoi_color_hash(r, g, b)
-                if index_table[index_pos] == packed_px:
-                    f.write(pack_qoi_op_index(index_pos))
+                dr = r - pr
+                dg = g - pg
+                db = b - pb
+                drg = dr - dg
+                dbg = db - dg
+                if (-3 < dr < 2) and (-3 < dg < 2) and (-3 < db < 2):
+                    out.extend(pack_qoi_op_diff(dr, dg, db))
+                elif (-33 < dg < 32) and (-9 < drg < 8) and (-9 < dbg < 8):
+                    out.extend(pack_qoi_op_luma(drg, dg, dbg))
                 else:
-                    dr = r - pr
-                    dg = g - pg
-                    db = b - pb
-                    drg = dr - dg
-                    dbg = db - dg
-                    if (-3 < dr < 2) and (-3 < dg < 2) and (-3 < db < 2):
-                        f.write(pack_qoi_op_diff(dr, dg, db))
-                    elif (-33 < dg < 32) and (-9 < drg < 8) and (-9 < dbg < 8):
-                        f.write(pack_qoi_op_luma(drg, dg, dbg))
-                    else:
-                        f.write(pack_qoi_op_rgb(r, g, b))
-                        index_table[index_pos] = packed_px
+                    out.extend(pack_qoi_op_rgb(r, g, b))
+                    index_table[index_pos] = packed_px
 
-            pr = r
-            pg = g
-            pb = b
+        pr = r
+        pg = g
+        pb = b
 
-        f.write(END_MARKER)
+    out.extend(END_MARKER)
+    with open(path, "wb") as f:
+        f.write(out)
     return 1
 
 
