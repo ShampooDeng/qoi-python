@@ -8,6 +8,8 @@ Repo workflow for any new session or subagent.
 - Plan files:
   - `OPTIMIZATION_PLAN.md`
   - `OPTIMIZATION_CHECKLIST.md`
+- Project skill:
+  - `.pi/skills/precommit-review/SKILL.md`
 
 ## Rules
 1. Before making any code change, read `OPTIMIZATION_PLAN.md` and `OPTIMIZATION_CHECKLIST.md`.
@@ -33,3 +35,8 @@ uv run python -m unittest discover -s tests -p "test_*.py"
 - Update `OPTIMIZATION_CHECKLIST.md`
 - Mark completed items with `[x]` only when tests pass
 - Do not delete or replace `OPTIMIZATION_PLAN.md`
+
+## Available skill
+- `precommit-review`
+- Use it for staged-change review and pre-commit `ruff` formatting/checking
+- It only reviews staged changes and leaves the final commit decision to the user
