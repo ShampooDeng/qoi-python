@@ -92,11 +92,11 @@ Concrete execution checklist for optimizing `qoi.py` while keeping `OPTIMIZATION
 
 ## Final validation
 
-- [ ] Re-run full benchmark suite
-- [ ] Compare final numbers against baseline
-- [ ] Confirm RGB round-trip tests all pass
-- [ ] Confirm code remains readable and documented
-- [ ] Summarize changes and performance results in a short note or README update
+- [x] Re-run full benchmark suite
+- [x] Compare final numbers against baseline
+- [x] Confirm RGB round-trip tests all pass
+- [x] Confirm code remains readable and documented
+- [x] Summarize changes and performance results in a short note or README update
 
 ## Nice-to-have follow-ups
 

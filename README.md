@@ -36,11 +36,53 @@ Test image from [@video](https://www.bilibili.com/video/BV11z4y1X7V5/)
 conda install numpy matplotlib
 ```
 
-todo:
-* [x] find a way to implement sign bit in python
-* [x] check `pack_qoi_op_diff` and `pack_qoi_op_luma` function
-* [ ] check qoi end marker when reaching the last pixel
-* [ ] support rgba images
-* [ ] add error checking when pixel value overflows
-* [ ] make it python library
-* [x] move `qoi_decode` and `qoi_encode` into qoi.py
+## Optimization status
+
+The optimization plan in this repo has been completed through Phase 5.
+
+### Final validation snapshot
+
+Measured with:
+
+```sh
+./.venv/Scripts/python.exe bench_qoi.py --repeats 3 --warmups 1
+```
+
+| case | encoded size | encode mean | decode mean |
+|---|---:|---:|---:|
+| photographic_rgb | 3.44 MiB | 986.467 ms | 816.267 ms |
+| flat_regions | 5.53 KiB | 18.294 ms | 10.941 ms |
+| small_sanity | 53 B | 0.413 ms | 0.206 ms |
+
+### Improvements vs baseline
+
+- photographic RGB:
+  - encode: `9493.805 ms -> 986.467 ms` (`9.62x` faster)
+  - decode: `5940.218 ms -> 816.267 ms` (`7.28x` faster)
+- flat regions:
+  - encode: `191.536 ms -> 18.294 ms` (`10.47x` faster)
+  - decode: `17.123 ms -> 10.941 ms` (`1.57x` faster)
+- small sanity:
+  - encode: `1.349 ms -> 0.413 ms` (`3.27x` faster)
+  - decode: `0.598 ms -> 0.206 ms` (`2.90x` faster)
+
+### Current support
+
+- RGB encode/decode: supported
+- RGBA encode/decode: explicitly unsupported for now
+- Unit tests: `32` passing tests under `tests/test_qoi_unittest.py`
+
+### Optimization notes folder
+
+All benchmark and validation notes are now collected under:
+
+- `docs/optimization/`
+
+Contents:
+- `docs/optimization/PHASE0_BASELINE.md`
+- `docs/optimization/PHASE1_RESULTS.md`
+- `docs/optimization/PHASE2_RESULTS.md`
+- `docs/optimization/PHASE3_RESULTS.md`
+- `docs/optimization/PHASE4_RESULTS.md`
+- `docs/optimization/PHASE5_RESULTS.md`
+- `docs/optimization/FINAL_VALIDATION.md`
