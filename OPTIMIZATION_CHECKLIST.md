@@ -25,15 +25,15 @@ Concrete execution checklist for optimizing `qoi.py` while keeping `OPTIMIZATION
 
 ## Phase 1 — Eliminate byte-at-a-time decoding
 
-- [ ] Refactor `qoi_decode()` to read payload bytes into memory once
-- [ ] Introduce a byte-position cursor (`pos`) for parsing
-- [ ] Replace `int.from_bytes(f.read(1), 'big')` in the decode loop
-- [ ] Refactor `decode_rgb()` to consume in-memory bytes instead of a file handle
-- [ ] Refactor `decode_luma()` to consume in-memory bytes instead of a file handle
-- [ ] Remove other per-byte file reads from decode helpers
-- [ ] Verify decode loop boundaries are correct (`pos` never overruns)
-- [ ] Re-run round-trip tests after the refactor
-- [ ] Re-measure decode performance and record improvement
+- [x] Refactor `qoi_decode()` to read payload bytes into memory once
+- [x] Introduce a byte-position cursor (`pos`) for parsing
+- [x] Replace `int.from_bytes(f.read(1), 'big')` in the decode loop
+- [x] Refactor `decode_rgb()` to consume in-memory bytes instead of a file handle
+- [x] Refactor `decode_luma()` to consume in-memory bytes instead of a file handle
+- [x] Remove other per-byte file reads from decode helpers
+- [x] Verify decode loop boundaries are correct (`pos` never overruns)
+- [x] Re-run round-trip tests after the refactor
+- [x] Re-measure decode performance and record improvement
 
 ## Phase 2 — Remove tiny NumPy ops from the hot path
 

@@ -1,4 +1,3 @@
-import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -115,13 +114,14 @@ class TestQoiDecodeHelpers(unittest.TestCase):
 
     def test_decode_rgb_reads_pixel_and_updates_index_table(self):
         index_table = np.zeros((64, 3), dtype=np.uint8)
-        stream = io.BytesIO(b"\x0a\x14\x1e")
+        payload = memoryview(b"\x0a\x14\x1e")
 
-        px = qoi.decode_rgb(stream, index_table)
+        px, pos = qoi.decode_rgb(payload, 0, index_table)
 
         expected = np.asarray([10, 20, 30], dtype=np.uint8)
         index_pos = qoi.qoi_color_hash(10, 20, 30)
 
+        self.assertEqual(pos, 3)
         self.assertTrue(np.array_equal(px, expected))
         self.assertTrue(np.array_equal(index_table[index_pos], expected))
 
@@ -138,9 +138,12 @@ class TestQoiDecodeHelpers(unittest.TestCase):
         previous = np.asarray([58, 58, 58], dtype=np.uint8)
         chunk = qoi.pack_qoi_op_luma(-3, -30, -5)
 
-        decoded = qoi.decode_luma(io.BytesIO(chunk[1:]), chunk[0], previous.copy())
+        decoded, pos = qoi.decode_luma(
+            memoryview(chunk[1:]), 0, chunk[0], previous.copy()
+        )
         expected = np.asarray([25, 28, 23], dtype=np.uint8)
 
+        self.assertEqual(pos, 1)
         self.assertTrue(np.array_equal(decoded, expected))
 
     def test_decode_index_returns_cached_pixel(self):
